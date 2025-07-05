@@ -1,40 +1,44 @@
 """
 Simple agent for general API usage.
-Creates Agent directly with full Pydantic AI flexibility.
+Uses agent pooling for improved performance.
 """
 
 from pydantic_ai import Agent
 from app.core.llm_utils import convert_model_name, validate_api_key, get_default_model
 from app.core.prompts import get_system_prompt
+from app.core.agent_pool import get_pooled_agent
+from app.core.cache_service import cache_service
 from app.schemas.agent import PromptRequest, PromptResponse, ConversationRequest, AgentResponse
 from app.utils.sanitize import sanitize_prompt
 import time
+import json
 
 
 async def process_simple_prompt(request: PromptRequest) -> PromptResponse:
     """
-    Process a simple prompt request.
-    Creates Agent directly with needed configuration.
+    Process a simple prompt request using pooled agents and caching.
     """
     start_time = time.time()
     
     # Sanitize input
     sanitized_message = sanitize_prompt(request.message)
+    model_name = request.model or "default"
     
-    # Get model name
-    model = convert_model_name(request.model) if request.model else get_default_model()
-    validate_api_key(model)
-    
-    # Create agent directly with full Pydantic AI configuration
-    agent = Agent(
-        model,
-        system_prompt=get_system_prompt(),
-        # Add any other Pydantic AI configs you need here
-        # retries=3,
-        # deps_type=SomeDep,
-        # output_type=SomeModel,
-        # tools=[some_tool],
+    # Check cache first
+    cached_response = await cache_service.get_prompt_response(
+        sanitized_message, model_name
     )
+    
+    if cached_response:
+        # Return cached response
+        cached_data = json.loads(cached_response)
+        processing_time = time.time() - start_time
+        cached_data["processing_time"] = processing_time  # Update with actual time
+        cached_data["cached"] = True
+        return PromptResponse(**cached_data)
+    
+    # Get pooled agent (much faster than creating new one)
+    agent = await get_pooled_agent(request.model)
     
     try:
         # Execute prompt
@@ -46,13 +50,20 @@ async def process_simple_prompt(request: PromptRequest) -> PromptResponse:
         if result.usage():
             tokens_used = result.usage().total_tokens or 0
             
-        return PromptResponse(
+        response = PromptResponse(
             response=result.output,
-            model_used=request.model or "default",
+            model_used=model_name,
             tokens_used=tokens_used,
             processing_time=processing_time,
             conversation_id=None,
         )
+        
+        # Cache the response for future use
+        await cache_service.cache_prompt_response(
+            sanitized_message, model_name, response.model_dump_json()
+        )
+        
+        return response
         
     except Exception as e:
         processing_time = time.time() - start_time
@@ -61,23 +72,12 @@ async def process_simple_prompt(request: PromptRequest) -> PromptResponse:
 
 async def process_simple_conversation(request: ConversationRequest) -> AgentResponse:
     """
-    Process a conversation request.
-    Creates Agent directly with conversation handling.
+    Process a conversation request using pooled agents.
     """
     start_time = time.time()
     
-    # Get model name  
-    model = convert_model_name(request.model) if request.model else get_default_model()
-    validate_api_key(model)
-    
-    # Create agent with full configuration flexibility
-    agent = Agent(
-        model,
-        system_prompt=get_system_prompt(),
-        # Configure as needed for conversations
-        # retries=2,
-        # deps_type=ConversationDeps,
-    )
+    # Get pooled agent (much faster than creating new one)
+    agent = await get_pooled_agent(request.model)
     
     try:
         # Build conversation prompt (or use message_history when properly formatted)

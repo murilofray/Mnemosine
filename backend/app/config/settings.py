@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     LOGFIRE_TOKEN: Optional[str] = None
     LOGFIRE_ENABLED: bool = False
 
+    # Performance settings
+    AGENT_POOL_SIZE: int = 10
+    REDIS_URL: Optional[str] = None
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 30
+    CACHE_TTL: int = 3600
+    ENABLE_RESPONSE_COMPRESSION: bool = True
+
     # Single user authentication (no database required)
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin"

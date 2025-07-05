@@ -3,7 +3,7 @@ Main API router for version 1 endpoints.
 """
 from typing import Any, Dict
 
-from app.api.v1 import agent, auth
+from app.api.v1 import agent, auth, performance
 from fastapi import APIRouter
 
 # Create the main v1 router
@@ -12,6 +12,7 @@ api_router = APIRouter()
 # Include sub-routers
 api_router.include_router(auth.router)
 api_router.include_router(agent.router)
+api_router.include_router(performance.router)
 
 
 @api_router.get("/health")
