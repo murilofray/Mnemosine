@@ -28,8 +28,16 @@ limiter = Limiter(
 
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
     """Custom rate limit exceeded handler."""
-    # Get retry_after from the exception if available, otherwise default to 60
-    retry_after = getattr(exc, 'retry_after', 60)
+    # Safely get retry_after from the exception with proper validation
+    retry_after = 60  # Default value
+    
+    if hasattr(exc, 'retry_after') and exc.retry_after is not None:
+        try:
+            retry_after = int(exc.retry_after)
+            # Ensure retry_after is reasonable (between 1 and 3600 seconds)
+            retry_after = max(1, min(retry_after, 3600))
+        except (ValueError, TypeError):
+            retry_after = 60  # Fall back to default if conversion fails
     
     return JSONResponse(
         status_code=429,
@@ -38,4 +46,5 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Res
             "detail": f"Too many requests. Limit: {exc.detail}",
             "retry_after": retry_after,
         },
+        headers={"Retry-After": str(retry_after)},
     )

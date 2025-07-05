@@ -76,6 +76,6 @@ def authenticate_user(username: str, password: str) -> bool:
     if username != settings.ADMIN_USERNAME:
         return False
 
-    # In a single-user system, we hash the password from settings
-    hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
-    return verify_password(password, hashed_password)
+    # Direct password comparison - the hashed password should be stored in settings
+    # For security, the admin password should be hashed once and stored
+    return verify_password(password, settings.ADMIN_PASSWORD_HASH)

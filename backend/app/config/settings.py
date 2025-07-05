@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     LOGFIRE_ENABLED: bool = False
 
     # Single user authentication (no database required)
-    ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "admin"
+    ADMIN_USERNAME: str = Field(..., description="Admin username - must be set via environment variable")
+    ADMIN_PASSWORD_HASH: str = Field(..., description="Admin password hash - must be set via environment variable")
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
@@ -85,6 +85,14 @@ class Settings(BaseSettings):
         """Validate database URL format."""
         if not v.startswith(("postgresql://")):
             raise ValueError("DATABASE_URL must be a valid PostgreSQL URL")
+        return v
+
+    @field_validator("ADMIN_PASSWORD_HASH")
+    @classmethod
+    def validate_admin_password_hash(cls, v: str) -> str:
+        """Validate admin password hash format."""
+        if not v or not v.startswith("$2b$"):
+            raise ValueError("ADMIN_PASSWORD_HASH must be a valid bcrypt hash")
         return v
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
